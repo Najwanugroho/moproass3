@@ -4,6 +4,6 @@ import android.media.Image
 
 data class Planet(
     val name: String,
-    val desc: String? = null,
+    val description: String? = null,
     val image: String,
 )
