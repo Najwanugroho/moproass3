@@ -55,7 +55,9 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.BuildConfig
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.R
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.model.Planet
+import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.model.User
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.network.ApiStatus
+import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.network.UserDataStore
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.ui.theme._607062300125_najwashaqila_moproass3Theme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -66,6 +68,8 @@ import kotlin.math.sign
 @Composable
 fun MainScreen(){
     val context = LocalContext.current
+    val dataStore = UserDataStore(context)
+    val user by dataStore.userFlow.collectAsState(User())
     Scaffold (
         topBar = {
             TopAppBar(
@@ -78,7 +82,11 @@ fun MainScreen(){
                 ),
                 actions = {
                     IconButton(onClick = {
-                        CoroutineScope(Dispatchers.IO).launch { signIn(context) }
+                        if (user.email.isEmpty()) {
+                            CoroutineScope(Dispatchers.IO).launch { signIn(context, dataStore) }
+                        }else{
+                            Log.d("SIGN-IN","User:$user")
+                        }
                     }) {
                         Icon(
                             painter = painterResource(R.drawable.account_circle_24),
@@ -188,7 +196,7 @@ fun ListItem(planet: Planet) {
         }
     }
 }
-private suspend fun signIn(context: Context) {
+private suspend fun signIn(context: Context,dataStore: UserDataStore) {
     val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(false)
         .setServerClientId(BuildConfig.API_KEY)
@@ -201,19 +209,24 @@ private suspend fun signIn(context: Context) {
     try {
         val credentialManager = CredentialManager.create(context)
         val result = credentialManager.getCredential(context, request)
-        handleSignIn(result)
+        handleSignIn(result,dataStore)
     } catch (e: GetCredentialException) {
         Log.e("SIGN-IN", "Error: ${e.errorMessage}")
     }
 }
 
-private fun handleSignIn(result: GetCredentialResponse) {
+private suspend fun handleSignIn(
+    result: GetCredentialResponse,
+    dataStore: UserDataStore) {
     val credential = result.credential
     if (credential is CustomCredential &&
         credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
         try {
             val googleId = GoogleIdTokenCredential.createFrom(credential.data)
-            Log.d("SIGN-IN", "User email: ${googleId.id}")
+            val nama =googleId.displayName ?: ""
+            val email= googleId.id
+            val photoUrl=googleId.profilePictureUri.toString()
+            dataStore.saveData(User(nama,email,photoUrl))
         } catch (e: GoogleIdTokenParsingException) {
             Log.e("SIGN-IN", "Error: ${e.message}")
         }
