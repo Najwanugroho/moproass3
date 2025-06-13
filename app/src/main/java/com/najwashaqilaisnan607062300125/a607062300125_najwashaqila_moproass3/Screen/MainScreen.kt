@@ -85,12 +85,18 @@ fun ListItem(planet: Planet) {
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(planet.image)
+                .data(
+                    if (planet.name == "Earth")
+                        "https://example.com/not-found.jpg"
+                    else
+                    planet.image
+                )
                 .crossfade(true)
                 .build(),
             contentDescription = stringResource(R.string.gambar, planet.name),
             contentScale = ContentScale.Crop,
             placeholder = painterResource(id = R.drawable.loading_img),
+            error = painterResource(id = R.drawable.broken_image),
             modifier = Modifier.fillMaxSize()
         )
 
