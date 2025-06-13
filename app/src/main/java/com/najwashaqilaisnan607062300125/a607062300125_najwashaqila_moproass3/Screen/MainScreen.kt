@@ -75,6 +75,22 @@ fun ScreenContent(modifier: Modifier = Modifier) {
 
         }
 
+        ApiStatus.FAILED -> {
+            Column (
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ){
+                Text(text = stringResource(id = R.string.error))
+                Button(
+                    onClick = {viewModel.retrieveData()},
+                    modifier=Modifier.padding(top = 16.dp),
+                    contentPadding =PaddingValues(horizontal = 32.dp, vertical = 16.dp)
+                ) {
+                    Text(text = stringResource(id = R.string.try_again))
+                }
+            }
+        }
     }
 }
 
