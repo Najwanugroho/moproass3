@@ -28,3 +28,4 @@ object PlanetApi{
         retrofit.create(PlanetApiService::class.java)
     }
 }
+enum class ApiStatus{LOADING,SUCCESS}
