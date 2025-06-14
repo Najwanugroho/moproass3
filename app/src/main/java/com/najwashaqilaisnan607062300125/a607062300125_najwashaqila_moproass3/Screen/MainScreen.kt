@@ -8,6 +8,7 @@ import android.graphics.ImageDecoder
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -36,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,30 +83,39 @@ import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.ui
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.math.sign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(){
+fun MainScreen() {
     val context = LocalContext.current
     val dataStore = UserDataStore(context)
     val user by dataStore.userFlow.collectAsState(User())
 
+    var selectedPlanet by remember { mutableStateOf<Planet?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    val viewModel: MainViewModel = viewModel()
+    val errorMessage by viewModel.errorMessage
+
     var showDialog by remember { mutableStateOf(false) }
     var showPlanetDialog by remember { mutableStateOf(false) }
 
-    var bitmap:Bitmap? by remember { mutableStateOf(null) }
-    val launcher = rememberLauncherForActivityResult(CropImageContract()){
-        bitmap = getCroppedImage(context.contentResolver,it)
-        if (bitmap!= null) showPlanetDialog = true
+    var bitmap: Bitmap? by remember { mutableStateOf(null) }
+    val launcher = rememberLauncherForActivityResult(CropImageContract()) {
+        bitmap = getCroppedImage(context.contentResolver, it)
+        if (bitmap != null) showPlanetDialog = true
     }
-    Scaffold (
+
+    LaunchedEffect(Unit) {
+        viewModel.retrievePlanets()
+    }
+
+    Scaffold(
         topBar = {
             TopAppBar(
-                title={
+                title = {
                     Text(text = stringResource(id = R.string.app_name))
                 },
-                colors= TopAppBarDefaults.mediumTopAppBarColors(
+                colors = TopAppBarDefaults.mediumTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.primary,
                 ),
@@ -111,8 +123,8 @@ fun MainScreen(){
                     IconButton(onClick = {
                         if (user.email.isEmpty()) {
                             CoroutineScope(Dispatchers.IO).launch { signIn(context, dataStore) }
-                        }else{
-                           showDialog=true
+                        } else {
+                            showDialog = true
                         }
                     }) {
                         Icon(
@@ -122,7 +134,6 @@ fun MainScreen(){
                         )
                     }
                 }
-
             )
         },
         floatingActionButton = {
@@ -139,69 +150,111 @@ fun MainScreen(){
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = stringResource(id = R.string.tambah_planet)
-                    )
+                )
             }
         }
-    ){ innerPadding ->
-        ScreenContent(Modifier.padding(innerPadding))
+    ) { innerPadding ->
+        ScreenContent(
+            viewModel = viewModel,
+            modifier = Modifier.padding(innerPadding),
+            onEditClick = { planet ->
+                selectedPlanet = planet
+                showEditDialog = true
+            },
+            onDeleteClick = { planetId ->
+                viewModel.deletePlanet(planetId)
+            }
+        )
 
-        if (showDialog){
-            ProfilDialog(
-                user= user,
-                onDismissRequest = {showDialog = false}
-            ) { CoroutineScope(Dispatchers.IO).launch { signOut(context,dataStore) }
-                showDialog=false }
+        if (showDialog) {
+            ProfilDialog(user = user, onDismissRequest = { showDialog = false }) {
+                CoroutineScope(Dispatchers.IO).launch { signOut(context, dataStore) }
+                showDialog = false
+            }
         }
 
-        if (showPlanetDialog){
+        if (showPlanetDialog) {
+            PlanetDialog(bitmap = bitmap, onDismissRequest = {
+                showPlanetDialog = false
+                bitmap = null
+            }) { name, deskripsi ->
+                viewModel.createPlanet(name, deskripsi, bitmap!!)
+                showPlanetDialog = false
+                bitmap = null
+            }
+        }
+
+        if (showEditDialog && selectedPlanet != null) {
             PlanetDialog(
+                planet = selectedPlanet,
                 bitmap = bitmap,
-                onDismissRequest = { showPlanetDialog= false}){nama,deskripsi ->
-                Log.d("TAMBAH","$nama $deskripsi ditambahkan")
-                showPlanetDialog =false
-
+                onDismissRequest = {
+                    showEditDialog = false
+                    selectedPlanet = null
+                }
+            ) { name, deskripsi ->
+                viewModel.updatePlanet(selectedPlanet!!.id, name, deskripsi)
+                showEditDialog = false
+                selectedPlanet = null
             }
+        }
+
+        errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearMessage()
         }
     }
 }
 
 @Composable
-fun ScreenContent(modifier: Modifier = Modifier) {
-    val viewModel: MainViewModel = viewModel()
+fun ScreenContent(
+    viewModel: MainViewModel,
+    modifier: Modifier = Modifier,
+    onEditClick: (Planet) -> Unit,
+    onDeleteClick: (Int) -> Unit
+) {
     val data by viewModel.data
-    val status by viewModel.status.collectAsState()
+    val status by viewModel.status
 
-    when(status){
-        ApiStatus.LOADING->{
-        Box(
-            modifier=Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ){
-            CircularProgressIndicator()
+    when (status) {
+        ApiStatus.LOADING -> {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
         }
-        }
-        ApiStatus.SUCCESS->{
+
+        ApiStatus.SUCCESS -> {
             LazyVerticalGrid(
-                modifier = modifier.fillMaxSize().padding(4.dp),
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(4.dp),
                 columns = GridCells.Fixed(2),
                 contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
-                items(data) {  ListItem(planet = it)}
+            ) {
+                items(items = data, key = { it.id }) { planet ->
+                    ListItem(
+                        planet = planet,
+                        onUpdateClick = { onEditClick(planet) },
+                        onDeleteClick = { onDeleteClick(planet.id) }
+                    )
+                }
             }
-
         }
 
         ApiStatus.FAILED -> {
-            Column (
+            Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
-            ){
+            ) {
                 Text(text = stringResource(id = R.string.error))
                 Button(
-                    onClick = {viewModel.retrieveData()},
-                    modifier=Modifier.padding(top = 16.dp),
-                    contentPadding =PaddingValues(horizontal = 32.dp, vertical = 16.dp)
+                    onClick = { viewModel.retrievePlanets() },
+                    modifier = Modifier.padding(top = 16.dp),
+                    contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp)
                 ) {
                     Text(text = stringResource(id = R.string.try_again))
                 }
@@ -211,7 +264,11 @@ fun ScreenContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ListItem(planet: Planet) {
+fun ListItem(
+    planet: Planet,
+    onUpdateClick: (Planet) -> Unit,
+    onDeleteClick: (Planet) -> Unit
+) {
     Box(
         modifier = Modifier
             .padding(4.dp)
@@ -221,12 +278,7 @@ fun ListItem(planet: Planet) {
     ) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
-                .data(
-                   // if (planet.name == "Earth")
-                        //"https://example.com/not-found.jpg"
-                   // else
-                    planet.image
-                )
+                .data(planet.image)
                 .crossfade(true)
                 .build(),
             contentDescription = stringResource(R.string.gambar, planet.name),
@@ -242,11 +294,7 @@ fun ListItem(planet: Planet) {
                 .background(Color.Black.copy(alpha = 0.5f))
                 .padding(4.dp)
         ) {
-            Text(
-                text = planet.name,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
+            Text(text = planet.name, fontWeight = FontWeight.Bold, color = Color.White)
             planet.description?.let {
                 Text(
                     text = it,
@@ -255,9 +303,31 @@ fun ListItem(planet: Planet) {
                     color = Color.White
                 )
             }
+
+            Row(
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                IconButton(onClick = { onUpdateClick(planet) }) {
+                    Icon(
+                        painter = painterResource(R.drawable.edit_24),
+                        contentDescription = "Edit",
+                        tint = Color.White
+                    )
+                }
+                IconButton(onClick = { onDeleteClick(planet) }) {
+                    Icon(
+                        painter = painterResource(R.drawable.delete_24),
+                        contentDescription = "Delete",
+                        tint = Color.Red
+                    )
+                }
+            }
         }
     }
 }
+
+
 private suspend fun signIn(context: Context,dataStore: UserDataStore) {
     val googleIdOption: GetGoogleIdOption = GetGoogleIdOption.Builder()
         .setFilterByAuthorizedAccounts(false)
@@ -318,13 +388,20 @@ private fun getCroppedImage(
 
     val uri = result.uriContent ?: return null
 
-    return if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
-        MediaStore.Images.Media.getBitmap(resolver, uri)
-    }else {
-        val source = ImageDecoder.createSource(resolver, uri)
-        ImageDecoder.decodeBitmap(source)
+    return try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val source = ImageDecoder.createSource(resolver, uri)
+            ImageDecoder.decodeBitmap(source)
+        } else {
+            @Suppress("DEPRECATION")
+            MediaStore.Images.Media.getBitmap(resolver, uri)
+        }
+    } catch (e: Exception) {
+        Log.e("IMAGE", "Decode failed: ${e.message}")
+        null
     }
 }
+
 
 @Preview(showBackground = true)
 @Preview(uiMode = Configuration.UI_MODE_NIGHT_YES, showBackground = true)
@@ -334,4 +411,3 @@ fun MainScreenPreview() {
         MainScreen()
     }
 }
-

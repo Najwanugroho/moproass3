@@ -30,33 +30,41 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.R
+import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.model.Planet
 import com.najwashaqilaisnan607062300125.a607062300125_najwashaqila_moproass3.ui.theme._607062300125_najwashaqila_moproass3Theme
 
 @Composable
 fun PlanetDialog(
+    planet: Planet? = null,
     bitmap: Bitmap?,
-    onDismissRequest:() -> Unit,
-    onConfirmation:(String,String)-> Unit
-){
-    var nama by remember { mutableStateOf("") }
-    var deskripsi by remember { mutableStateOf("") }
-    Dialog(onDismissRequest={onDismissRequest()}) {
-        Card (
+    onDismissRequest: () -> Unit,
+    onConfirmation: (String, String) -> Unit
+) {
+    var name by remember { mutableStateOf(planet?.name ?: "") }
+    var description by remember { mutableStateOf(planet?.description ?: "") }
+
+    Dialog(onDismissRequest = { onDismissRequest() }) {
+        Card(
             modifier = Modifier.padding(16.dp),
             shape = RoundedCornerShape(16.dp),
-        ){
+        ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Image(
-                    bitmap = bitmap!!.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(1f)
-                )
+                bitmap?.let {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
+                    )
+                }
+
                 OutlinedTextField(
-                    value = nama,
-                    onValueChange = {nama=it},
+                    value = name,
+                    onValueChange = { name = it },
                     label = { Text(text = stringResource(id = R.string.nama)) },
                     maxLines = 1,
                     keyboardOptions = KeyboardOptions(
@@ -64,11 +72,11 @@ fun PlanetDialog(
                         imeAction = ImeAction.Next
                     ),
                     modifier = Modifier.padding(top = 8.dp)
-                    ,
                 )
+
                 OutlinedTextField(
-                    value = deskripsi,
-                    onValueChange = {deskripsi=it},
+                    value = description,
+                    onValueChange = { description = it },
                     label = { Text(text = stringResource(id = R.string.deskripsi)) },
                     maxLines = 1,
                     keyboardOptions = KeyboardOptions(
@@ -76,21 +84,24 @@ fun PlanetDialog(
                         imeAction = ImeAction.Done
                     ),
                     modifier = Modifier.padding(top = 8.dp)
-
                 )
-                Row (
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 16.dp),
                     horizontalArrangement = Arrangement.Center
-                ){
+                ) {
                     OutlinedButton(
-                        onClick = {onDismissRequest()},
+                        onClick = { onDismissRequest() },
                         modifier = Modifier.padding(8.dp)
                     ) {
                         Text(text = stringResource(R.string.batal))
                     }
+
                     OutlinedButton(
-                        onClick = {onConfirmation(nama,deskripsi)},
-                        enabled = nama.isNotEmpty()&& deskripsi.isNotEmpty(),
+                        onClick = { onConfirmation(name, description) },
+                        enabled = name.isNotBlank() && description.isNotBlank(),
                         modifier = Modifier.padding(8.dp)
                     ) {
                         Text(text = stringResource(R.string.simpan))
